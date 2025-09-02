@@ -22,6 +22,13 @@ class ConsumptionHistoryWindow:
         if icon:
             self.root.iconbitmap(icon)
 
+        # Позиционируем окно рядом с главным окном
+        self.root.geometry(f"{width}x{height}+{parent.winfo_x() + 50}+{parent.winfo_y() + 50}")
+        
+        # Делаем окно модальным, но не скрываем главное окно
+        self.root.transient(parent)
+        self.root.grab_set()
+
         self.abonent_id = abonent_id
         self.last_pdf_path = None  # Будем хранить путь к последнему созданному PDF
         print(f"Тип abonent_id: {type(self.abonent_id)}, значение: {self.abonent_id}")
@@ -138,7 +145,6 @@ class ConsumptionHistoryWindow:
                                                font=("Roboto", 12))
         self.calculation_result.pack(pady=5, padx=10, fill=ctk.BOTH, expand=True)
 
-        self.root.grab_set()
         self.root.focus_set()
 
         self.transformation_ratio = 1  # Коэффициент трансформации по умолчанию

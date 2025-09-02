@@ -59,7 +59,7 @@ class Window:
         """Создает окно добавления абонента"""
         print("Создание дочернего окна")  # Отладочный вывод
         try:
-            # Create child window
+            # Create child window without hiding main window
             child_window = AddAbonentWindow(self.root, width, height, title="Добавить абонента")
             print("Дочернее окно создано")  # Отладочный вывод
             
@@ -74,40 +74,24 @@ class Window:
             
         except Exception as e:
             print(f"Ошибка при создании окна: {e}")
-            # Make sure main window is visible in case of error
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
 
     def create_monthly_data_window(self, width, height, abonent_id, title=None):
         """Создает окно внесения месячных данных"""
-        # Disable main window interactions while child window is open
-        self.root.withdraw()
-        
         try:
-            # Create and wait for child window
+            # Create and wait for child window without hiding main window
             monthly_window = MonthlyDataWindow(self.root, width, height, abonent_id, title=title)
             self.root.wait_window(monthly_window.root)
-        finally:
-            # Re-enable and show main window
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
+        except Exception as e:
+            print(f"Ошибка при создании окна месячных данных: {e}")
 
     def create_consumption_history_window(self, width, height, abonent_id, title=None):
         """Создает окно истории потребления"""
-        # Disable main window interactions while child window is open
-        self.root.withdraw()
-        
         try:
-            # Create and wait for child window
+            # Create and wait for child window without hiding main window
             history_window = ConsumptionHistoryWindow(self.root, width, height, abonent_id, title=title)
             self.root.wait_window(history_window.root)
-        finally:
-            # Re-enable and show main window
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
+        except Exception as e:
+            print(f"Ошибка при создании окна истории: {e}")
 
     def draw_widget(self):
         """Создает элементы интерфейса"""
@@ -174,6 +158,33 @@ class Window:
         ctk.CTkButton(data_frame, text="История потребления",
                      command=self.run_consumption_history_window,
                      height=35).pack(fill="x", pady=5)
+
+        # Вкладка "Отчеты"
+        reports_title_frame = ctk.CTkFrame(tab2)
+        reports_title_frame.pack(fill="x", padx=10, pady=10)
+        ctk.CTkLabel(reports_title_frame, text="Генерация отчетов", 
+                    font=("Roboto", 16, "bold")).pack(pady=5)
+
+        # Кнопки для отчетов
+        reports_buttons_frame = ctk.CTkFrame(tab2)
+        reports_buttons_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkButton(reports_buttons_frame, text="📝 Создать реестры по всем абонентам",
+                     command=self.generate_registries_for_all_abonents,
+                     height=40,
+                     font=("Roboto", 12)).pack(fill="x", pady=10)
+
+        # Информационная панель для отчетов
+        reports_info_frame = ctk.CTkFrame(tab2)
+        reports_info_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        ctk.CTkLabel(reports_info_frame, text="Статус генерации отчетов",
+                    font=("Roboto", 14, "bold")).pack(pady=5)
+        
+        self.reports_status_text = ctk.CTkTextbox(reports_info_frame,
+                                                font=("Roboto", 12),
+                                                wrap="word")
+        self.reports_status_text.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Вкладка "Настройки"
         settings_frame = ctk.CTkFrame(tab3)
@@ -365,8 +376,8 @@ class Window:
 
             abonent_id = self.db.get_abonent_id_by_name(selected_name)
             if abonent_id:
-                # Создаем окно (без ожидания закрытия)
-                MonthlyDataWindow(self.root, 400, 600, abonent_id)
+                # Создаем окно с правильной обработкой
+                self.create_monthly_data_window(400, 600, abonent_id)
 
                 # Обновляем данные
                 self.refresh_data()
@@ -450,6 +461,258 @@ class Window:
                          message=f"Ошибка при открытии окна настроек: {str(e)}",
                          icon="cancel")
 
+    def format_month(self, month_num):
+        """Форматирует номер месяца в название"""
+        months = [
+            "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+        ]
+        return months[month_num - 1] if 1 <= month_num <= 12 else f"Месяц {month_num}"
+
+    def generate_registries_for_all_abonents(self):
+        """Создает реестры по всем существующим абонентам"""
+        try:
+            # Очищаем статус
+            self.reports_status_text.delete("1.0", "end")
+            self.reports_status_text.insert("end", "🔄 Начинаем генерацию реестров по всем абонентам...\n\n")
+            
+            # Получаем всех абонентов
+            all_abonents = self.db.fetch_data()
+            if not all_abonents:
+                self.reports_status_text.insert("end", "❌ Нет абонентов в базе данных!\n")
+                return
+            
+            self.reports_status_text.insert("end", f"📋 Найдено абонентов: {len(all_abonents)}\n\n")
+            
+            # Запрашиваем месяц и год
+            from tkinter import simpledialog
+            import datetime
+            
+            current_date = datetime.datetime.now()
+            month = simpledialog.askinteger("Месяц", 
+                                          f"Введите месяц (1-12):", 
+                                          initialvalue=current_date.month,
+                                          minvalue=1, maxvalue=12)
+            if month is None:
+                self.reports_status_text.insert("end", "❌ Отменено пользователем\n")
+                return
+                
+            year = simpledialog.askinteger("Год", 
+                                         f"Введите год:", 
+                                         initialvalue=current_date.year,
+                                         minvalue=2000, maxvalue=2100)
+            if year is None:
+                self.reports_status_text.insert("end", "❌ Отменено пользователем\n")
+                return
+            
+            # Получаем название месяца
+            month_names = {
+                1: "январь", 2: "февраль", 3: "март", 4: "апрель",
+                5: "май", 6: "июнь", 7: "июль", 8: "август",
+                9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь"
+            }
+            month_name = month_names[month]
+            
+            self.reports_status_text.insert("end", f"📅 Генерируем реестры за {month_name} {year} года\n\n")
+            
+            # Загружаем настройки
+            import os
+            import json
+            settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'settings.json')
+            try:
+                if os.path.exists(settings_file):
+                    with open(settings_file, 'r', encoding='utf-8') as f:
+                        settings = json.load(f)
+                else:
+                    settings = {}
+            except Exception as e:
+                self.reports_status_text.insert("end", f"⚠️ Ошибка при загрузке настроек: {e}\n")
+                settings = {}
+            
+            # Получаем путь сохранения из настроек
+            save_path = settings.get("save_path", r"C:\Реестры по абонентам")
+            
+            # Создаем подпапку с названием месяца
+            month_folder_path = os.path.join(save_path, month_name)
+            os.makedirs(month_folder_path, exist_ok=True)
+            
+            # Импортируем необходимые модули
+            from docx import Document
+            from docx.shared import Pt, Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            import re
+            
+            successful_count = 0
+            failed_count = 0
+            
+            # Обрабатываем каждого абонента
+            for i, abonent in enumerate(all_abonents, 1):
+                abonent_id = abonent[0]
+                fulname = abonent[1]
+                
+                self.reports_status_text.insert("end", f"📝 Обрабатываем абонента {i}/{len(all_abonents)}: {fulname}\n")
+                self.reports_status_text.see("end")
+                
+                try:
+                    # Проверяем наличие данных за указанный месяц
+                    end_month_data = self.db.execute_query(
+                        "SELECT * FROM monthly_data WHERE abonent_id = ? AND month = ? AND year = ?",
+                        (abonent_id, month, year),
+                        fetch_mode='one'
+                    )
+                    
+                    if not end_month_data:
+                        self.reports_status_text.insert("end", f"   ⚠️ Нет данных за {month_name} {year} года\n")
+                        failed_count += 1
+                        continue
+                    
+                    # Получаем данные за предыдущий месяц
+                    prev_month = month - 1 if month > 1 else 12
+                    prev_year = year if month > 1 else year - 1
+                    
+                    start_month_data = self.db.execute_query(
+                        "SELECT * FROM monthly_data WHERE abonent_id = ? AND month = ? AND year = ?",
+                        (abonent_id, prev_month, prev_year),
+                        fetch_mode='one'
+                    )
+                    
+                    # Создаем документ Word
+                    doc = Document()
+                    
+                    # Настройка стилей
+                    style = doc.styles['Normal']
+                    style.font.name = 'Times New Roman'
+                    style.font.size = Pt(12)
+                    
+                    # Заголовок
+                    title = doc.add_paragraph()
+                    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    title_run = title.add_run('РЕЕСТР\nвозмещения затрат за потребление электроэнергии и воды\n')
+                    title_run.bold = True
+                    title_run.font.size = Pt(14)
+                    
+                    # Период
+                    period = doc.add_paragraph()
+                    period.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    period.add_run(f'за {month_name} {year} г.\n').bold = True
+                    
+                    # Организация
+                    org = doc.add_paragraph()
+                    org.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    org.add_run(f'{fulname}\n').bold = True
+                    
+                    # Электроэнергия (индекс 4 в monthly_data)
+                    if len(end_month_data) > 4 and end_month_data[4] is not None:
+                        prev_value = float(start_month_data[4]) if start_month_data and len(start_month_data) > 4 and \
+                                                                   start_month_data[4] is not None else 0.0
+                        curr_value = float(end_month_data[4])
+                        consumption = curr_value - prev_value
+                        
+                        # Получаем коэффициент трансформации из данных абонента
+                        transformation_ratio = abonent[3] if len(abonent) > 3 and abonent[3] else 1
+                        total_consumption = consumption * transformation_ratio
+                        
+                        doc.add_paragraph('1. Показания счетчика электроэнергии:', style='Normal')
+                        doc.add_paragraph(f'   - на начало периода: {prev_value:.1f} кВт·ч', style='Normal')
+                        doc.add_paragraph(f'   - на конец периода: {curr_value:.1f} кВт·ч', style='Normal')
+                        doc.add_paragraph(f'   - итого потребление: {consumption:.1f} кВт·ч', style='Normal')
+                        
+                        if transformation_ratio != 1:
+                            doc.add_paragraph(f'   - коэффициент трансформации: {transformation_ratio}', style='Normal')
+                            doc.add_paragraph(f'   - итого потребление с учетом КТ: {total_consumption:.1f} кВт·ч', style='Normal')
+                        
+                        doc.add_paragraph('2. Тариф за потребленную электроэнергию: ______________ руб./кВт·ч', style='Normal')
+                        doc.add_paragraph('   ИТОГО к оплате: ______________________ руб.', style='Normal')
+                        doc.add_paragraph('3. Тариф за заявленную мощность: _______________ руб./кВт', style='Normal')
+                        doc.add_paragraph('   Заявленная мощность: _________________ кВт', style='Normal')
+                        doc.add_paragraph('   ИТОГО к оплате: ________________ руб.', style='Normal')
+                        doc.add_paragraph('   ВСЕГО к оплате (п.2 + п.3): ________________ руб.', style='Normal')
+                        doc.add_paragraph()
+                    
+                    # Вода (индекс 5)
+                    if len(end_month_data) > 5 and end_month_data[5] is not None:
+                        prev_value = float(start_month_data[5]) if start_month_data and len(start_month_data) > 5 and \
+                                                                   start_month_data[5] is not None else 0.0
+                        curr_value = float(end_month_data[5])
+                        consumption = curr_value - prev_value
+                        
+                        doc.add_paragraph('4. Показания счетчика воды:', style='Normal')
+                        doc.add_paragraph(f'   - на начало периода: {prev_value:.1f} м³', style='Normal')
+                        doc.add_paragraph(f'   - на конец периода: {curr_value:.1f} м³', style='Normal')
+                        doc.add_paragraph(f'   - итого потребление: {consumption:.1f} м³', style='Normal')
+                        doc.add_paragraph('   Тариф: ______________ руб./м³', style='Normal')
+                        doc.add_paragraph('   ИТОГО к оплате: ______________________ руб.', style='Normal')
+                        doc.add_paragraph()
+                    
+                    # Сточные воды (индекс 6)
+                    if len(end_month_data) > 6 and end_month_data[6] is not None:
+                        prev_value = float(start_month_data[6]) if start_month_data and len(start_month_data) > 6 and \
+                                                                   start_month_data[6] is not None else 0.0
+                        curr_value = float(end_month_data[6])
+                        consumption = curr_value - prev_value
+                        
+                        doc.add_paragraph('5. Водоотведение:', style='Normal')
+                        doc.add_paragraph(f'{consumption:.1f} м³', style='Normal')
+                        doc.add_paragraph('   Тариф: ______________ руб./м³', style='Normal')
+                        doc.add_paragraph('   ИТОГО к оплате: ______________________ руб.', style='Normal')
+                        doc.add_paragraph()
+                    
+                    # Газ (индекс 7)
+                    if len(end_month_data) > 7 and end_month_data[7] is not None:
+                        prev_value = float(start_month_data[7]) if start_month_data and len(start_month_data) > 7 and \
+                                                                   start_month_data[7] is not None else 0.0
+                        curr_value = float(end_month_data[7])
+                        consumption = curr_value - prev_value
+                        
+                        doc.add_paragraph('6. Показания счетчика газа:', style='Normal')
+                        doc.add_paragraph(f'   - на начало периода: {prev_value:.1f} м³', style='Normal')
+                        doc.add_paragraph(f'   - на конец периода: {curr_value:.1f} м³', style='Normal')
+                        doc.add_paragraph(f'   - итого потребление: {consumption:.1f} м³', style='Normal')
+                        doc.add_paragraph('   Тариф: ______________ руб./м³', style='Normal')
+                        doc.add_paragraph('   ИТОГО к оплате: ______________________ руб.', style='Normal')
+                        doc.add_paragraph()
+                    
+                    # Подписи
+                    signatures = settings.get("signatures", [])
+                    for signature in signatures:
+                        position = signature.get("position", "")
+                        name = signature.get("name", "")
+                        if position and name:
+                            doc.add_paragraph(f'{position} {name}\t/____________/', style='Normal')
+                    
+                    doc.add_paragraph('Согласовано:', style='Normal')
+                    doc.add_paragraph('Арендатор ___________________/________________/', style='Normal')
+                    
+                    # Сохраняем документ
+                    safe_name = re.sub(r'[\\/*?:"<>|]', "", fulname)
+                    file_name = f"{safe_name}_{month_name}_{year}_реестр.docx"
+                    file_path = os.path.join(month_folder_path, file_name)
+                    doc.save(file_path)
+                    
+                    self.reports_status_text.insert("end", f"   ✅ Реестр создан: {file_name}\n")
+                    successful_count += 1
+                    
+                except Exception as e:
+                    self.reports_status_text.insert("end", f"   ❌ Ошибка: {str(e)}\n")
+                    failed_count += 1
+            
+            # Итоговый отчет
+            self.reports_status_text.insert("end", f"\n{'='*50}\n")
+            self.reports_status_text.insert("end", f"📊 ИТОГИ ГЕНЕРАЦИИ:\n")
+            self.reports_status_text.insert("end", f"✅ Успешно создано: {successful_count}\n")
+            self.reports_status_text.insert("end", f"❌ Ошибок: {failed_count}\n")
+            self.reports_status_text.insert("end", f"📁 Папка сохранения: {month_folder_path}\n")
+            
+            if successful_count > 0:
+                self.reports_status_text.insert("end", f"\n🎉 Генерация завершена успешно!\n")
+            else:
+                self.reports_status_text.insert("end", f"\n⚠️ Не удалось создать ни одного реестра\n")
+            
+        except Exception as e:
+            self.reports_status_text.insert("end", f"❌ Критическая ошибка: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
+
     def run(self):
         """Запускает главное окно"""
         try:
@@ -458,14 +721,6 @@ class Window:
             # Гарантированно закрываем соединение при выходе
             if hasattr(self, 'db') and self.db:
                 self.db.close_connection()
-
-    def format_month(self, month_num):
-        """Форматирует номер месяца в название"""
-        months = [
-            "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
-        ]
-        return months[month_num - 1] if 1 <= month_num <= 12 else f"Месяц {month_num}"
 
 
 if __name__ == "__main__":

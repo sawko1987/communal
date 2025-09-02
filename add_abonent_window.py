@@ -48,13 +48,16 @@ class AddAbonentWindow:
         self.draw_abonent_widget()
         print("Виджеты отрисованы")  # Отладочный вывод
         
-        # Set initial focus to name entry
-        self.name_entry.focus_set()
-        
         # Настройка обработчиков событий
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.bind('<Destroy>', self.on_destroy)
         print("Обработчики событий установлены")  # Отладочный вывод
+        
+        # Set initial focus to name entry (with error handling)
+        try:
+            self.name_entry.focus_set()
+        except Exception as e:
+            print(f"Ошибка при установке фокуса: {e}")
 
     def on_destroy(self, event):
         """Обработчик уничтожения окна"""
@@ -84,13 +87,6 @@ class AddAbonentWindow:
             
         self.root.destroy()
         print("Окно уничтожено")  # Отладочный вывод
-        
-        # Восстанавливаем родительское окно
-        if self.parent:
-            self.parent.deiconify()
-            self.parent.lift()
-            self.parent.focus_force()
-            print("Родительское окно восстановлено")  # Отладочный вывод
 
     def grab_focus(self):
         """Safely grab and manage window focus"""
@@ -98,12 +94,6 @@ class AddAbonentWindow:
             return
             
         try:
-            # Ensure parent is updated
-            self.parent.update_idletasks()
-            
-            # Try to grab focus
-            self.root.grab_set()
-            
             # Make sure window is on top
             self.root.lift()
             

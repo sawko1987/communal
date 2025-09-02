@@ -17,6 +17,13 @@ class EditAbonentWindow:
         if icon:
             self.top.iconbitmap(icon)
 
+        # Позиционируем окно рядом с главным окном
+        self.top.geometry(f"{width}x{height}+{parent.winfo_x() + 50}+{parent.winfo_y() + 50}")
+        
+        # Делаем окно модальным, но не скрываем главное окно
+        self.top.transient(parent)
+        self.top.grab_set()
+
         self.abonent_data = abonent_data
         self.abonent_id = abonent_data[0]
 
@@ -47,7 +54,6 @@ class EditAbonentWindow:
         self.grab_focus()
 
     def grab_focus(self):
-        self.top.grab_set()
         self.top.focus_set()
         self.top.wait_window()
 
@@ -142,6 +148,22 @@ class EditAbonentWindow:
                 self.entries[text].destroy()
                 del self.entries[text]
 
+    def parse_number(self, value_str, value_type=float):
+        """Преобразует строку в число, поддерживая как точку, так и запятую в качестве разделителя"""
+        if not value_str or value_str.strip() == '':
+            return None
+        
+        # Убираем пробелы
+        value_str = value_str.strip()
+        
+        # Заменяем запятую на точку
+        value_str = value_str.replace(',', '.')
+        
+        try:
+            return value_type(value_str)
+        except ValueError:
+            raise ValueError(f"Неверный формат числа: {value_str}")
+
     def save_data(self):
         """Сохраняет измененные данные абонента"""
         try:
@@ -160,20 +182,19 @@ class EditAbonentWindow:
                     return value if value else None
                 return None
 
-            elect_value = get_entry_value("Электроэнергия")
-            transformation_ratio_value = get_entry_value("Коэффициент трансформации")
-            water_value = get_entry_value("Вода")
-            wastewater_value = get_entry_value("Водоотведение")
-            gaz_value = get_entry_value("Газ")
+            elect_value = get_entry_value("⚡ Электроэнергия")
+            transformation_ratio_value = get_entry_value("📊 Коэффициент трансформации")
+            water_value = get_entry_value("💧 Вода")
+            wastewater_value = get_entry_value("🚰 Водоотведение")
+            gaz_value = get_entry_value("🔥 Газ")
 
-            # Преобразуем значения в числа
+            # Преобразуем значения в числа с поддержкой запятой
             try:
-                elect_value = float(elect_value) if elect_value is not None else None
-                transformation_ratio_value = int(
-                    transformation_ratio_value) if transformation_ratio_value is not None else None
-                water_value = int(water_value) if water_value is not None else None
-                wastewater_value = int(wastewater_value) if wastewater_value is not None else None
-                gaz_value = int(gaz_value) if gaz_value is not None else None
+                elect_value = self.parse_number(elect_value, float) if elect_value is not None else None
+                transformation_ratio_value = self.parse_number(transformation_ratio_value, int) if transformation_ratio_value is not None else None
+                water_value = self.parse_number(water_value, int) if water_value is not None else None
+                wastewater_value = self.parse_number(wastewater_value, int) if wastewater_value is not None else None
+                gaz_value = self.parse_number(gaz_value, int) if gaz_value is not None else None
             except ValueError as e:
                 CTkMessagebox(title="Ошибка", 
                             message=f"Некорректные числовые значения: {str(e)}",

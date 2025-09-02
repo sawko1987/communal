@@ -11,7 +11,14 @@ class EditMonthlyDataWindow:
     def __init__(self, parent, abonent_id, month, year, data, on_save_callback):
         self.root = ctk.CTkToplevel(parent)
         self.root.title("Редактирование показаний")
-        self.root.geometry("500x600")
+        self.root.geometry("400x600")
+        
+        # Позиционируем окно рядом с главным окном
+        self.root.geometry(f"400x600+{parent.winfo_x() + 50}+{parent.winfo_y() + 50}")
+        
+        # Делаем окно модальным, но не скрываем главное окно
+        self.root.transient(parent)
+        self.root.grab_set()
         
         self.abonent_id = abonent_id
         self.month = month
@@ -25,24 +32,21 @@ class EditMonthlyDataWindow:
         db.close_connection()
         
         if not self.abonent_data:
-            CTkMessagebox(title="Ошибка", 
-                         message="Не удалось загрузить данные абонента",
-                         icon="cancel")
+            messagebox.showerror("Ошибка", "Не удалось загрузить данные абонента")
             self.root.destroy()
             return
-        
+            
         # Создаем основной контейнер
         self.main_frame = ctk.CTkScrollableFrame(self.root)
         self.main_frame.pack(fill=BOTH, expand=True, padx=20, pady=20)
         
         self.draw_widgets()
         self.grab_focus()
-        
+
     def grab_focus(self):
-        self.root.grab_set()
         self.root.focus_set()
         self.root.wait_window()
-        
+
     def draw_widgets(self):
         # Заголовок
         title_frame = ctk.CTkFrame(self.main_frame)
@@ -101,13 +105,29 @@ class EditMonthlyDataWindow:
         entry.pack(side=RIGHT, padx=10)
         return entry
         
+    def parse_number(self, value_str):
+        """Преобразует строку в число, поддерживая как точку, так и запятую в качестве разделителя"""
+        if not value_str or value_str.strip() == '':
+            return None
+        
+        # Убираем пробелы
+        value_str = value_str.strip()
+        
+        # Заменяем запятую на точку
+        value_str = value_str.replace(',', '.')
+        
+        try:
+            return float(value_str)
+        except ValueError:
+            raise ValueError(f"Неверный формат числа: {value_str}")
+        
     def save_data(self):
         try:
-            # Получаем значения только для выбранных услуг
-            electricity = float(self.entries['electricity'].get()) if 'electricity' in self.entries and self.entries['electricity'].get() else None
-            water = float(self.entries['water'].get()) if 'water' in self.entries and self.entries['water'].get() else None
-            wastewater = float(self.entries['wastewater'].get()) if 'wastewater' in self.entries and self.entries['wastewater'].get() else None
-            gas = float(self.entries['gas'].get()) if 'gas' in self.entries and self.entries['gas'].get() else None
+            # Получаем значения только для выбранных услуг с поддержкой запятой
+            electricity = self.parse_number(self.entries['electricity'].get()) if 'electricity' in self.entries and self.entries['electricity'].get() else None
+            water = self.parse_number(self.entries['water'].get()) if 'water' in self.entries and self.entries['water'].get() else None
+            wastewater = self.parse_number(self.entries['wastewater'].get()) if 'wastewater' in self.entries and self.entries['wastewater'].get() else None
+            gas = self.parse_number(self.entries['gas'].get()) if 'gas' in self.entries and self.entries['gas'].get() else None
             
             # Обновляем данные в БД
             db = SqliteDB()
@@ -123,14 +143,13 @@ class EditMonthlyDataWindow:
             CTkMessagebox(title="Успех", 
                          message="Данные успешно обновлены",
                          icon="check")
-            
-        except ValueError:
+        except ValueError as e:
             CTkMessagebox(title="Ошибка", 
-                         message="Некорректные данные. Убедитесь, что все поля заполнены числами.",
+                         message=f"Проверьте правильность введенных данных. {str(e)}",
                          icon="cancel")
         except Exception as e:
             CTkMessagebox(title="Ошибка", 
-                         message=f"Ошибка при сохранении данных: {str(e)}",
+                         message=f"Ошибка при обновлении данных: {str(e)}",
                          icon="cancel")
 
 class SelectMonthWindow:
@@ -138,6 +157,13 @@ class SelectMonthWindow:
         self.root = ctk.CTkToplevel(parent)
         self.root.title("Выбор месяца для редактирования")
         self.root.geometry("500x600")
+        
+        # Позиционируем окно рядом с главным окном
+        self.root.geometry(f"500x600+{parent.winfo_x() + 50}+{parent.winfo_y() + 50}")
+        
+        # Делаем окно модальным, но не скрываем главное окно
+        self.root.transient(parent)
+        self.root.grab_set()
         
         self.abonent_id = abonent_id
         self.on_select_callback = on_select_callback
@@ -151,7 +177,6 @@ class SelectMonthWindow:
         self.grab_focus()
         
     def grab_focus(self):
-        self.root.grab_set()
         self.root.focus_set()
         self.root.wait_window()
         
@@ -244,6 +269,13 @@ class MonthlyDataWindow:
             self.root.iconbitmap(icon)
         self.abonent_id = abonent_id
         
+        # Позиционируем окно рядом с главным окном
+        self.root.geometry(f"{width}x{height}+{parent.winfo_x() + 50}+{parent.winfo_y() + 50}")
+        
+        # Делаем окно модальным, но не скрываем главное окно
+        self.root.transient(parent)
+        self.root.grab_set()
+        
         # Получаем информацию об услугах абонента
         db = SqliteDB()
         self.abonent_data = db.get_abonent_by_id(self.abonent_id)
@@ -262,9 +294,50 @@ class MonthlyDataWindow:
         self.grab_focus()
 
     def grab_focus(self):
-        self.root.grab_set()
         self.root.focus_set()
         self.root.wait_window()
+
+    def get_next_month_year(self, last_month, last_year):
+        """Получает следующий месяц и год после последнего введенного"""
+        next_month = last_month + 1
+        next_year = last_year
+        
+        if next_month > 12:
+            next_month = 1
+            next_year += 1
+            
+        return next_month, next_year
+
+    def get_last_month_year(self):
+        """Получает последние введенные месяц и год для данного абонента"""
+        try:
+            db = SqliteDB()
+            # Получаем последнюю запись для данного абонента
+            query = """
+                SELECT month, year 
+                FROM monthly_data 
+                WHERE abonent_id = ? 
+                ORDER BY year DESC, month DESC 
+                LIMIT 1
+            """
+            result = db.execute_query(query, (self.abonent_id,), fetch_mode='one')
+            db.close_connection()
+            
+            if result:
+                last_month, last_year = result[0], result[1]
+                # Возвращаем следующий месяц после последнего введенного
+                return self.get_next_month_year(last_month, last_year)
+            else:
+                # Если нет данных, возвращаем текущий месяц и год
+                from datetime import datetime
+                now = datetime.now()
+                return now.month, now.year
+        except Exception as e:
+            print(f"Ошибка при получении последних месяца и года: {e}")
+            # В случае ошибки возвращаем текущий месяц и год
+            from datetime import datetime
+            now = datetime.now()
+            return now.month, now.year
 
     def montly_widget(self):
         # Заголовок
@@ -273,6 +346,9 @@ class MonthlyDataWindow:
         ctk.CTkLabel(title_frame, 
                     text="Ввод показаний",
                     font=("Roboto", 20, "bold")).pack(pady=10)
+        
+        # Получаем последние введенные месяц и год
+        last_month, last_year = self.get_last_month_year()
         
         # Общие поля (месяц и год)
         month_year_frame = ctk.CTkFrame(self.main_frame)
@@ -289,6 +365,8 @@ class MonthlyDataWindow:
                                       height=35,
                                       font=("Roboto", 12))
         self.month_entry.pack(pady=5)
+        # Автоматически заполняем последним введенным месяцем
+        self.month_entry.insert(0, str(last_month))
 
         year_frame = ctk.CTkFrame(month_year_frame)
         year_frame.pack(side=LEFT, padx=5, expand=True)
@@ -301,6 +379,8 @@ class MonthlyDataWindow:
                                      height=35,
                                      font=("Roboto", 12))
         self.year_entry.pack(pady=5)
+        # Автоматически заполняем последним введенным годом
+        self.year_entry.insert(0, str(last_year))
 
         # Поля для ввода показаний
         self.entries = {}
@@ -456,6 +536,22 @@ class MonthlyDataWindow:
         """Callback для редактирования выбранного месяца"""
         EditMonthlyDataWindow(self.root, self.abonent_id, month, year, values, self.refresh_data)
 
+    def parse_number(self, value_str):
+        """Преобразует строку в число, поддерживая как точку, так и запятую в качестве разделителя"""
+        if not value_str or value_str.strip() == '':
+            return None
+        
+        # Убираем пробелы
+        value_str = value_str.strip()
+        
+        # Заменяем запятую на точку
+        value_str = value_str.replace(',', '.')
+        
+        try:
+            return float(value_str)
+        except ValueError:
+            raise ValueError(f"Неверный формат числа: {value_str}")
+
     def save_data(self):
         """Сохраняет введенные данные"""
         try:
@@ -475,11 +571,11 @@ class MonthlyDataWindow:
                             icon="cancel")
                 return
             
-            # Получаем значения только для выбранных услуг
-            electricity = float(self.entries['electricity'].get()) if 'electricity' in self.entries else None
-            water = float(self.entries['water'].get()) if 'water' in self.entries else None
-            wastewater = float(self.entries['wastewater'].get()) if 'wastewater' in self.entries else None
-            gas = float(self.entries['gas'].get()) if 'gas' in self.entries else None
+            # Получаем значения только для выбранных услуг с поддержкой запятой
+            electricity = self.parse_number(self.entries['electricity'].get()) if 'electricity' in self.entries and self.entries['electricity'].get() else None
+            water = self.parse_number(self.entries['water'].get()) if 'water' in self.entries and self.entries['water'].get() else None
+            wastewater = self.parse_number(self.entries['wastewater'].get()) if 'wastewater' in self.entries and self.entries['wastewater'].get() else None
+            gas = self.parse_number(self.entries['gas'].get()) if 'gas' in self.entries and self.entries['gas'].get() else None
             
             # Проверяем введенные значения на необычные отклонения
             if electricity is not None:
@@ -505,7 +601,7 @@ class MonthlyDataWindow:
             
         except ValueError as e:
             CTkMessagebox(title="Ошибка", 
-                         message="Проверьте правильность введенных данных. Все значения должны быть числами.",
+                         message=f"Проверьте правильность введенных данных. {str(e)}",
                          icon="cancel")
         except Exception as e:
             CTkMessagebox(title="Ошибка", 
